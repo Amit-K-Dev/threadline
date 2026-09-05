@@ -4,3 +4,5 @@ node_modules
 .next
 .venv
 .vscode
+vscode-extensions.txt
+*.db

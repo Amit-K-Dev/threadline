@@ -45,6 +45,21 @@ export default function Dashboard() {
               you, not a press release.
             </p>
           </Link>
+
+          <Link
+            href="/dashboard/history"
+            className="block bg-graphite-800 border border-graphite-700 hover:border-redline rounded-lg p-7 transition-colors focus-ring sm:col-span-2"
+          >
+            <p className="font-mono text-xs text-redline uppercase tracking-widest mb-3">
+              Tool 03
+            </p>
+            <h2 className="text-lg font-medium text-bone-100">
+              History / Saved Generations
+            </h2>
+            <p className="text-sm text-bone-400 mt-2">
+              View your past cover letters and LinkedIn posts.
+            </p>
+          </Link>
         </div>
       </section>
       <Footer />

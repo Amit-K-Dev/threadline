@@ -9,7 +9,12 @@
     "lint": "eslint app components lib"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.9.1",
     "@google/genai": "^2.21.0",
+    "@prisma/client": "^5.19.1",
+    "@supabase/ssr": "^0.12.6",
+    "@supabase/supabase-js": "^2.115.0",
+    "@vercel/analytics": "^2.0.1",
     "next": "^16.3.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -22,6 +27,7 @@
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.4",
     "postcss": "^8.4.47",
+    "prisma": "^5.19.1",
     "tailwindcss": "^3.4.13"
   }
 }

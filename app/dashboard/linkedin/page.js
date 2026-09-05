@@ -4,11 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
-import {
-  hasFreeGenerationsLeft,
-  recordGeneration,
-  remainingFree,
-} from "@/lib/usage";
 
 const POST_TYPES = [
   { value: "achievement", label: "Achievement / project" },
@@ -25,21 +20,30 @@ export default function LinkedInTool() {
   const [blocked, setBlocked] = useState(false);
   const [copied, setCopied] = useState(false);
   const [remaining, setRemaining] = useState(2);
+  const [tier, setTier] = useState("free");
 
   useEffect(() => {
-    const id = setTimeout(() => {
-      setRemaining(remainingFree());
-      setBlocked(!hasFreeGenerationsLeft());
-    }, 0);
-    return () => clearTimeout(id);
+    async function checkUsage() {
+      try {
+        const res = await fetch("/api/user/usage");
+        if (res.ok) {
+          const data = await res.json();
+          setRemaining(data.remaining);
+          setBlocked(data.blocked);
+          setTier(data.subscriptionTier);
+        }
+      } catch (err) {
+        console.error("Failed to fetch usage:", err);
+      }
+    }
+    checkUsage();
   }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
 
-    if (!hasFreeGenerationsLeft()) {
-      setBlocked(true);
+    if (blocked) {
       return;
     }
 
@@ -52,10 +56,20 @@ export default function LinkedInTool() {
         body: JSON.stringify({ background, postType }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Generation failed.");
+      if (!res.ok) {
+        if (res.status === 403 && data.error === "Free generations limit reached.") {
+          setBlocked(true);
+        }
+        throw new Error(data.error || "Generation failed.");
+      }
       setResult(data);
-      const usage = recordGeneration();
-      setRemaining(Math.max(0, 2 - usage.count));
+      if (tier === "free") {
+        setRemaining((r) => {
+          const newRemaining = Math.max(0, r - 1);
+          if (newRemaining === 0) setBlocked(true);
+          return newRemaining;
+        });
+      }
     } catch (err) {
       setError(err.message);
     } finally {

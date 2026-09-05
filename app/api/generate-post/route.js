@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { Type } from "@google/genai";
+import { db } from "@/lib/db";
 import {
   AIProvidersUnavailableError,
   generateWithFallback,
@@ -27,6 +30,11 @@ function parsePostResponse(value) {
 
 export async function POST(request) {
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     let body;
     try {
       body = await request.json();
@@ -52,6 +60,41 @@ export async function POST(request) {
       );
     }
 
+    // Check usage limits
+    const userRecord = await db.user.upsert({
+      where: { id: userId },
+      update: {},
+      create: {
+        id: userId,
+        email: "placeholder@example.com", // Since Clerk doesn't pass email easily here, we just use placeholder or fetch via Clerk SDK later
+      },
+    });
+
+    if (userRecord.subscriptionTier === "free" && userRecord.freeGenerationsUsed >= 2) {
+      return NextResponse.json(
+        { error: "Free generations limit reached." },
+        { status: 403 }
+      );
+    }
+
+    // Rate limiting: prevent abuse by limiting to 10 requests per rolling hour
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const recentGenerationsCount = await db.generation.count({
+      where: {
+        userId,
+        createdAt: {
+          gte: oneHourAgo,
+        },
+      },
+    });
+
+    if (recentGenerationsCount >= 10) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded. You can only generate 10 items per hour." },
+        { status: 429 }
+      );
+    }
+
     const typeLabel =
       {
         "open-to-work": "an 'open to work' post announcing a job search",
@@ -64,16 +107,49 @@ Rules:
 - No invented facts — only use what's given.
 - Avoid generic hustle-culture language ("thrilled to announce", "blessed", excessive emoji).
 - Write like a person, not a press release. 80-160 words.
-- Output ONLY valid JSON, no markdown fences: {"post": "...", "hashtags": ["..."]}
+- Output ONLY valid JSON: {"post": "...", "hashtags": ["..."]}
 - hashtags: 3-5 relevant, lowercase, no # symbol in the string.`;
 
     const userMessage = `Write ${typeLabel}.\n\nBackground / details:\n${background}`;
+
+    const postSchema = {
+      type: Type.OBJECT,
+      properties: {
+        post: {
+          type: Type.STRING,
+        },
+        hashtags: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING },
+        },
+      },
+      required: ["post", "hashtags"],
+    };
 
     const result = await generateWithFallback({
       prompt: userMessage,
       systemPrompt: system,
       maxTokens: 800,
+      schema: postSchema,
       validateResponse: (text) => parseJsonResponse(text, parsePostResponse),
+    });
+
+    // Increment usage
+    if (userRecord.subscriptionTier === "free") {
+      await db.user.update({
+        where: { id: userId },
+        data: { freeGenerationsUsed: { increment: 1 } },
+      });
+    }
+
+    // Save generation history
+    await db.generation.create({
+      data: {
+        userId,
+        type: "linkedin_post",
+        input: JSON.stringify({ postType, background }),
+        output: JSON.stringify(result),
+      },
     });
 
     return NextResponse.json(result);

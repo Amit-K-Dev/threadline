@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+import { useAuth, useClerk } from "@clerk/nextjs";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 
@@ -11,6 +15,7 @@ const PLANS = [
     cta: "Start free",
     href: "/dashboard",
     highlighted: false,
+    action: null,
   },
   {
     name: "Job Search",
@@ -23,9 +28,10 @@ const PLANS = [
       "LinkedIn post tool",
       "Priority generation speed",
     ],
-    cta: "Coming soon",
+    cta: "Upgrade to Pro",
     href: null,
     highlighted: true,
+    action: "checkout",
   },
   {
     name: "Always On",
@@ -40,10 +46,44 @@ const PLANS = [
     cta: "Coming soon",
     href: null,
     highlighted: false,
+    action: null,
   },
 ];
 
 export default function Pricing() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const { isSignedIn } = useAuth();
+  const { openSignIn } = useClerk();
+
+  const handleCheckout = async () => {
+    if (!isSignedIn) {
+      openSignIn();
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to create checkout session");
+      }
+      
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (err) {
+      setError(err.message);
+      setLoading(false);
+    }
+  };
+
   return (
     <>
       <Nav />
@@ -52,6 +92,12 @@ export default function Pricing() {
         <p className="text-bone-400 mt-2">
           Cancel anytime. No card required for the free tier.
         </p>
+        
+        {error && (
+          <div className="mt-4 p-4 bg-red-900/20 border border-red-500/50 rounded-lg text-red-200">
+            {error}
+          </div>
+        )}
 
         <div className="grid sm:grid-cols-3 gap-6 mt-10">
           {PLANS.map((plan) => (
@@ -86,17 +132,26 @@ export default function Pricing() {
                   </li>
                 ))}
               </ul>
+              
               {plan.href ? (
                 <a
                   href={plan.href}
-                  className="mt-7 text-center px-5 py-2.5 rounded font-medium transition-colors focus-ring border border-graphite-700 hover:border-bone-400 text-bone-100"
+                  className="mt-7 block text-center px-5 py-2.5 rounded font-medium transition-colors focus-ring border border-graphite-700 hover:border-bone-400 text-bone-100"
                 >
                   {plan.cta}
                 </a>
+              ) : plan.action === "checkout" ? (
+                <button
+                  onClick={handleCheckout}
+                  disabled={loading}
+                  className="mt-7 w-full text-center px-5 py-2.5 rounded font-medium transition-colors focus-ring bg-redline hover:bg-redline-dim text-graphite-950 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? "Redirecting..." : plan.cta}
+                </button>
               ) : (
                 <span
                   aria-disabled="true"
-                  className="mt-7 text-center px-5 py-2.5 rounded font-medium bg-graphite-700/60 text-bone-400 cursor-not-allowed"
+                  className="mt-7 block text-center px-5 py-2.5 rounded font-medium bg-graphite-700/60 text-bone-400 cursor-not-allowed"
                 >
                   {plan.cta}
                 </span>
@@ -104,11 +159,6 @@ export default function Pricing() {
             </div>
           ))}
         </div>
-
-        <p className="text-xs text-bone-400 mt-8">
-          Checkout isn&apos;t wired up yet in this build — plug in Stripe using
-          the notes in README.md before launch.
-        </p>
       </section>
       <Footer />
     </>
