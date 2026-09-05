@@ -29,13 +29,13 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <ClerkProvider>
-      <html lang="en" data-scroll-behavior="smooth">
-        <body className="font-sans bg-graphite-900 text-bone-100 antialiased">
+    <html lang="en" data-scroll-behavior="smooth">
+      <body className="font-sans bg-graphite-900 text-bone-100 antialiased">
+        <ClerkProvider>
           {children}
           <Analytics />
-        </body>
-      </html>
-    </ClerkProvider>
+        </ClerkProvider>
+      </body>
+    </html>
   );
 }
